@@ -1,20 +1,83 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
   <meta charset="UTF-8">
+  <title>Mini App Таро</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #111;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      color: white;
+      font-family: sans-serif;
+    }
+    .card {
+      position: absolute;
+      width: 80px;
+      height: 120px;
+      background-size: cover;
+      border-radius: 8px;
+      box-shadow: 0 0 15px rgba(255,255,255,0.5);
+      cursor: pointer;
+      transition: transform 0.3s;
+    }
+  </style>
 </head>
 <body>
-  <h1>Привет из Mini App 🚀</h1>
-  <button onclick="sendData()">Отправить данные боту</button>
-
   <script>
     const tg = window.Telegram.WebApp;
     tg.expand();
 
-    function sendData() {
-      tg.sendData("Привет от Mini App!");
+    const cards = [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/Rider-Waite_Tarot_00_Fool.jpg/120px-Rider-Waite_Tarot_00_Fool.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Rider-Waite_Tarot_01_Magician.jpg/120px-Rider-Waite_Tarot_01_Magician.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/Rider-Waite_Tarot_02_High_Priestess.jpg/120px-Rider-Waite_Tarot_02_High_Priestess.jpg"
+    ];
+
+    const cardElements = [];
+
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2;
+    const radius = 150;
+
+    // Создаем элементы карт
+    cards.forEach((src, i) => {
+      const card = document.createElement("div");
+      card.className = "card";
+      card.style.backgroundImage = `url(${src})`;
+      document.body.appendChild(card);
+      cardElements.push({el: card, angle: (i / cards.length) * 2 * Math.PI});
+    });
+
+    function animate() {
+      cardElements.forEach((c, i) => {
+        c.angle += 0.01; // скорость вращения
+        const x = centerX + radius * Math.cos(c.angle) - 40; // 40 = половина ширины
+        const y = centerY + radius * Math.sin(c.angle) - 60; // 60 = половина высоты
+        c.el.style.transform = `translate(${x}px, ${y}px) rotate(${c.angle}rad)`;
+      });
+      requestAnimationFrame(animate);
     }
+
+    animate();
+
+    // Нажатие на карту отправляет данные боту
+    cardElements.forEach((c, i) => {
+      c.el.addEventListener("click", () => {
+        tg.sendData(`Кликнули на карту: ${i}`);
+      });
+    });
+
+    window.addEventListener("resize", () => {
+      // обновляем центр при изменении размера окна
+      centerX = window.innerWidth / 2;
+      centerY = window.innerHeight / 2;
+    });
   </script>
 </body>
 </html>
