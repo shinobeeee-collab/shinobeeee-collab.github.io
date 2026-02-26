@@ -14,15 +14,13 @@
 
     body {
       background: linear-gradient(135deg, #1a1e2b, #2a1f2d);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       display: flex;
       justify-content: center;
       align-items: center;
       min-height: 100vh;
       color: #fff;
-      margin: 0;
       padding: 16px;
-      /* Убираем overflow: hidden, чтобы точно всё помещалось */
     }
 
     .container {
@@ -43,26 +41,20 @@
       flex-wrap: wrap;
       width: 100%;
       padding: 16px 8px;
-      /* Минимальная высота, чтобы карты точно влезали */
       min-height: 240px;
     }
 
     .card {
       width: 100px;
       height: 160px;
-      background-color: #2a2a3a;
       background-size: cover;
       background-position: center;
       border-radius: 16px;
       box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5), 0 0 0 2px rgba(255, 215, 0, 0.2) inset;
-      cursor: pointer;
-      transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s;
-      /* Убираем 3D-трансформацию для простоты, карты просто появляются */
-      /* Но можно вернуть позже, если нужен именно переворот */
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
       flex-shrink: 0;
     }
 
-    /* Эффект при наведении (если есть мышь) */
     .card:hover {
       transform: translateY(-8px);
       box-shadow: 0 18px 25px rgba(0, 0, 0, 0.6), 0 0 0 3px rgba(255, 215, 0, 0.4) inset;
@@ -84,7 +76,7 @@
       font-weight: 600;
       color: #1e1a22;
       cursor: pointer;
-      box-shadow: 0 8px 0 #8b6b3c, 0 10px 20px rgba(0,0,0,0.4);
+      box-shadow: 0 8px 0 #8b6c3d, 0 10px 20px rgba(0,0,0,0.4);
       transition: all 0.1s ease;
       letter-spacing: 1px;
       width: fit-content;
@@ -94,10 +86,9 @@
 
     .btn:active {
       transform: translateY(6px);
-      box-shadow: 0 2px 0 #8b6b3c, 0 5px 12px rgba(0,0,0,0.4);
+      box-shadow: 0 2px 0 #8b6c3d, 0 5px 12px rgba(0,0,0,0.4);
     }
 
-    /* Адаптация для совсем маленьких экранов */
     @media (max-width: 380px) {
       .cards-area {
         gap: 8px;
@@ -112,7 +103,7 @@
 <body>
   <div class="container">
     <div class="cards-area" id="cardsArea">
-      <!-- Карты будут добавлены сюда скриптом -->
+      <!-- Карты будут созданы здесь скриптом -->
     </div>
     <div class="button-container">
       <button class="btn" id="spreadButton">Расклад</button>
@@ -121,63 +112,80 @@
 
   <script>
     const tg = window.Telegram.WebApp;
-    tg.expand(); // Растягиваем на всё окно Telegram
+    tg.expand();
     tg.ready();
 
-    // Картинки колоды Таро (оставляем те же)
+    // --- ПРАВИЛЬНЫЕ ПУТИ К КАРТАМ (используем папку /cards/) ---
+    const baseUrl = 'https://shinobeeee-collab.github.io';
+    const cardsFolder = '/cards/';
+    
+    // РУБАШКА: всегда показывается первой
+    const backCard = baseUrl + cardsFolder + 'oblojcka.jpg';
+    
+    // КОЛОДА: все ваши карты из папки cards
     const tarotCards = [
-      "https://upload.wikimedia.org/wikipedia/commons/5/5a/Rider-Waite_Tarot_00_Fool.jpg",
-      "https://upload.wikimedia.org/wikipedia/commons/d/d4/Rider-Waite_Tarot_01_Magician.jpg",
-      "https://upload.wikimedia.org/wikipedia/commons/2/2e/Rider-Waite_Tarot_02_High_Priestess.jpg",
-      "https://upload.wikimedia.org/wikipedia/commons/5/55/Rider-Waite_Tarot_03_Empress.jpg",
-      "https://upload.wikimedia.org/wikipedia/commons/0/09/Rider-Waite_Tarot_04_Emperor.jpg"
+      baseUrl + cardsFolder + 'mag.jpg',
+      baseUrl + cardsFolder + 'shut.jpg',
+      baseUrl + cardsFolder + 'verhovaya-zhrica.jpg',
+      baseUrl + cardsFolder + 'imperatrica.jpg'
+      // Когда добавите новые карты в папку cards, просто допишите их сюда:
+      // baseUrl + cardsFolder + ' emperator.jpg',
+      // baseUrl + cardsFolder + ' hierofant.jpg',
     ];
 
-    // Картинка рубашки
-    const backCard = "https://upload.wikimedia.org/wikipedia/commons/0/0b/Rider-Waite_Tarot_back.jpg";
-
+    // --- ЛОГИКА ПРИЛОЖЕНИЯ ---
     const cardsArea = document.getElementById('cardsArea');
     const spreadButton = document.getElementById('spreadButton');
-
-    // Создаём три карты
+    
+    // Создаём три карты (все с рубашкой)
     for (let i = 0; i < 3; i++) {
       const card = document.createElement('div');
       card.className = 'card';
       card.style.backgroundImage = `url('${backCard}')`;
-      card.dataset.flipped = 'false'; // Состояние: не перевёрнута
-      card.dataset.cardIndex = i; // Для порядка
+      card.dataset.flipped = 'false';
       cardsArea.appendChild(card);
+    }
+
+    // Функция для получения трёх РАЗНЫХ случайных карт
+    function getRandomUniqueCards(count) {
+      if (tarotCards.length === 0) return [];
+      
+      // Создаём копию массива и перемешиваем
+      const shuffled = [...tarotCards];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      
+      return shuffled.slice(0, Math.min(count, shuffled.length));
     }
 
     // Обработчик кнопки "Расклад"
     spreadButton.addEventListener('click', () => {
+      const selectedCards = getRandomUniqueCards(3);
       const cards = document.querySelectorAll('.card');
-      cards.forEach(card => {
-        // Проверяем, перевёрнута ли уже карта
+      
+      cards.forEach((card, index) => {
         if (card.dataset.flipped === 'false') {
-          // Выбираем случайную карту из колоды
-          const randomIndex = Math.floor(Math.random() * tarotCards.length);
-          const randomCardImage = tarotCards[randomIndex];
-          
-          // Меняем изображение
-          card.style.backgroundImage = `url('${randomCardImage}')`;
-          card.dataset.flipped = 'true';
-
-          // Добавляем небольшую анимацию "появления"
-          card.style.transform = 'scale(1.05)';
           setTimeout(() => {
-            card.style.transform = '';
-          }, 200);
+            card.style.backgroundImage = `url('${selectedCards[index]}')`;
+            card.dataset.flipped = 'true';
+            
+            // Маленькая анимация
+            card.style.transform = 'scale(1.05)';
+            setTimeout(() => {
+              card.style.transform = '';
+            }, 200);
+          }, index * 150);
         }
       });
 
-      // Опционально: вибрация на телефоне (если поддерживается)
       if (tg.HapticFeedback) {
         tg.HapticFeedback.impactOccurred('medium');
       }
     });
 
-    // Дополнительно: можно сделать красивое появление карт при загрузке
+    // Анимация появления при загрузке
     window.addEventListener('load', () => {
       const cards = document.querySelectorAll('.card');
       cards.forEach((card, index) => {
@@ -187,9 +195,18 @@
           card.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
           card.style.opacity = '1';
           card.style.transform = '';
-        }, 100 + index * 100); // По очереди
+        }, 100 + index * 100);
       });
     });
+
+    // Функция для сброса (если захотите добавить кнопку "Заново")
+    window.resetCards = function() {
+      const cards = document.querySelectorAll('.card');
+      cards.forEach(card => {
+        card.style.backgroundImage = `url('${backCard}')`;
+        card.dataset.flipped = 'false';
+      });
+    };
   </script>
 </body>
 </html>
