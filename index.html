@@ -89,6 +89,13 @@
       box-shadow: 0 2px 0 #8b6c3d, 0 5px 12px rgba(0,0,0,0.4);
     }
 
+    .btn:disabled {
+      opacity: 0.6;
+      transform: translateY(4px);
+      box-shadow: 0 4px 0 #8b6c3d;
+      pointer-events: none;
+    }
+
     @media (max-width: 380px) {
       .cards-area {
         gap: 8px;
@@ -115,42 +122,46 @@
     tg.expand();
     tg.ready();
 
-    // --- ПРАВИЛЬНЫЕ ПУТИ К КАРТАМ (используем папку /cards/) ---
+    // --- НАСТРОЙКА КАРТ ---
     const baseUrl = 'https://shinobeeee-collab.github.io';
     const cardsFolder = '/cards/';
     
-    // РУБАШКА: всегда показывается первой
+    // РУБАШКА
     const backCard = baseUrl + cardsFolder + 'oblojcka.jpg';
     
-    // КОЛОДА: все ваши карты из папки cards
+    // КОЛОДА (добавляем названия карт для базы данных)
     const tarotCards = [
-      baseUrl + cardsFolder + 'mag.jpg',
-      baseUrl + cardsFolder + 'shut.jpg',
-      baseUrl + cardsFolder + 'verhovaya-zhrica.jpg',
-      baseUrl + cardsFolder + 'imperatrica.jpg'
-      // Когда добавите новые карты в папку cards, просто допишите их сюда:
-      // baseUrl + cardsFolder + ' emperator.jpg',
-      // baseUrl + cardsFolder + ' hierofant.jpg',
+      { file: 'mag.jpg', name: 'Маг', nameEn: 'Magician' },
+      { file: 'shut.jpg', name: 'Шут', nameEn: 'Fool' },
+      { file: 'verhovaya-zhrica.jpg', name: 'Верховная Жрица', nameEn: 'High Priestess' },
+      { file: 'imperatrica.jpg', name: 'Императрица', nameEn: 'Empress' }
     ];
 
-    // --- ЛОГИКА ПРИЛОЖЕНИЯ ---
+    // --- НАСТРОЙКА N8N (!!! ЗАМЕНИТЕ НА ВАШ URL !!!) ---
+    const N8N_WEBHOOK_URL = 'https://ваш-n8n-сервер.com/webhook/taro-spread';
+    
+    // --- СОСТОЯНИЕ ПРИЛОЖЕНИЯ ---
+    let currentSpread = []; // Здесь будем хранить выпавшие карты
+    let isSending = false; // Флаг для предотвращения двойной отправки
+
+    // --- СОЗДАНИЕ КАРТ ---
     const cardsArea = document.getElementById('cardsArea');
     const spreadButton = document.getElementById('spreadButton');
     
-    // Создаём три карты (все с рубашкой)
+    // Создаём три карты
     for (let i = 0; i < 3; i++) {
       const card = document.createElement('div');
       card.className = 'card';
       card.style.backgroundImage = `url('${backCard}')`;
       card.dataset.flipped = 'false';
+      card.dataset.position = i + 1; // Позиция карты (1, 2, 3)
       cardsArea.appendChild(card);
     }
 
-    // Функция для получения трёх РАЗНЫХ случайных карт
+    // --- ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ СЛУЧАЙНЫХ КАРТ ---
     function getRandomUniqueCards(count) {
       if (tarotCards.length === 0) return [];
       
-      // Создаём копию массива и перемешиваем
       const shuffled = [...tarotCards];
       for (let i = shuffled.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -160,32 +171,118 @@
       return shuffled.slice(0, Math.min(count, shuffled.length));
     }
 
-    // Обработчик кнопки "Расклад"
-    spreadButton.addEventListener('click', () => {
+    // --- ФУНКЦИЯ ОТПРАВКИ В N8N ---
+    async function sendToN8N(spread) {
+      if (isSending) return;
+      
+      isSending = true;
+      spreadButton.disabled = true;
+      
+      // Получаем данные о пользователе Telegram
+      const user = tg.initDataUnsafe?.user || {};
+      
+      // Формируем данные для отправки
+      const payload = {
+        event: 'tarot_spread',
+        timestamp: new Date().toISOString(),
+        user: {
+          id: user.id || null,
+          firstName: user.first_name || '',
+          lastName: user.last_name || '',
+          username: user.username || '',
+          languageCode: user.language_code || ''
+        },
+        chat: tg.initDataUnsafe?.chat || {},
+        spread: spread.map((card, index) => ({
+          position: index + 1,
+          cardFile: card.file,
+          cardName: card.name,
+          cardNameEn: card.nameEn,
+          imageUrl: baseUrl + cardsFolder + card.file
+        })),
+        // Дополнительная информация
+        platform: 'telegram_mini_app',
+        appName: 'tarot_reader'
+      };
+
+      try {
+        console.log('Отправка данных в n8n:', payload);
+        
+        const response = await fetch(N8N_WEBHOOK_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+          console.log('✅ Данные успешно отправлены в n8n');
+          
+          // Показываем уведомление пользователю (опционально)
+          if (tg.showPopup) {
+            tg.showPopup({
+              title: 'Расклад сохранен',
+              message: 'Ваши карты записаны в историю',
+              buttons: [{ type: 'ok' }]
+            });
+          }
+        } else {
+          console.error('❌ Ошибка при отправке:', response.status);
+        }
+      } catch (error) {
+        console.error('❌ Ошибка сети:', error);
+      } finally {
+        isSending = false;
+        spreadButton.disabled = false;
+      }
+    }
+
+    // --- ОБРАБОТЧИК КНОПКИ ---
+    spreadButton.addEventListener('click', async () => {
+      // Получаем три случайные карты
       const selectedCards = getRandomUniqueCards(3);
+      currentSpread = selectedCards;
+      
       const cards = document.querySelectorAll('.card');
+      
+      // Переворачиваем карты с анимацией
+      const flipPromises = [];
       
       cards.forEach((card, index) => {
         if (card.dataset.flipped === 'false') {
-          setTimeout(() => {
-            card.style.backgroundImage = `url('${selectedCards[index]}')`;
-            card.dataset.flipped = 'true';
-            
-            // Маленькая анимация
-            card.style.transform = 'scale(1.05)';
+          const promise = new Promise((resolve) => {
             setTimeout(() => {
-              card.style.transform = '';
-            }, 200);
-          }, index * 150);
+              // Показываем карту
+              card.style.backgroundImage = `url('${baseUrl + cardsFolder + selectedCards[index].file}')`;
+              card.dataset.flipped = 'true';
+              
+              // Анимация
+              card.style.transform = 'scale(1.05)';
+              setTimeout(() => {
+                card.style.transform = '';
+              }, 200);
+              
+              resolve();
+            }, index * 200);
+          });
+          flipPromises.push(promise);
         }
       });
 
+      // Ждем, пока все карты перевернутся
+      await Promise.all(flipPromises);
+      
+      // Отправляем данные в n8n
+      await sendToN8N(selectedCards);
+
+      // Haptic feedback
       if (tg.HapticFeedback) {
         tg.HapticFeedback.impactOccurred('medium');
       }
     });
 
-    // Анимация появления при загрузке
+    // --- АНИМАЦИЯ ПОЯВЛЕНИЯ ---
     window.addEventListener('load', () => {
       const cards = document.querySelectorAll('.card');
       cards.forEach((card, index) => {
@@ -199,13 +296,14 @@
       });
     });
 
-    // Функция для сброса (если захотите добавить кнопку "Заново")
+    // --- ФУНКЦИЯ СБРОСА (если нужно) ---
     window.resetCards = function() {
       const cards = document.querySelectorAll('.card');
       cards.forEach(card => {
         card.style.backgroundImage = `url('${backCard}')`;
         card.dataset.flipped = 'false';
       });
+      currentSpread = [];
     };
   </script>
 </body>
