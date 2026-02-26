@@ -63,7 +63,9 @@
     .button-container {
       width: 100%;
       display: flex;
-      justify-content: center;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
       padding: 8px 0 24px;
     }
 
@@ -96,6 +98,17 @@
       pointer-events: none;
     }
 
+    .debug-status {
+      font-size: 12px;
+      color: #a0a0a0;
+      background: rgba(0,0,0,0.3);
+      padding: 8px 16px;
+      border-radius: 20px;
+      max-width: 100%;
+      word-break: break-all;
+      text-align: center;
+    }
+
     @media (max-width: 380px) {
       .cards-area {
         gap: 8px;
@@ -114,6 +127,7 @@
     </div>
     <div class="button-container">
       <button class="btn" id="spreadButton">Расклад</button>
+      <div class="debug-status" id="debugStatus">Ожидание...</div>
     </div>
   </div>
 
@@ -129,7 +143,7 @@
     // РУБАШКА
     const backCard = baseUrl + cardsFolder + 'oblojcka.jpg';
     
-    // КОЛОДА (добавляем названия карт для базы данных)
+    // КОЛОДА
     const tarotCards = [
       { file: 'mag.jpg', name: 'Маг', nameEn: 'Magician' },
       { file: 'shut.jpg', name: 'Шут', nameEn: 'Fool' },
@@ -137,12 +151,22 @@
       { file: 'imperatrica.jpg', name: 'Императрица', nameEn: 'Empress' }
     ];
 
-    // --- НАСТРОЙКА N8N (!!! ЗАМЕНИТЕ НА ВАШ URL !!!) ---
-const N8N_WEBHOOK_URL = 'https://morganelverst.app.n8n.cloud/webhook-test/ce2f4090-59b5-42dc-99d0-fea1f7541abc';
+    // --- НАСТРОЙКА N8N (ВАШ URL) ---
+    const N8N_WEBHOOK_URL = 'https://morganelverst.app.n8n.cloud/webhook-test/ce2f4090-59b5-42dc-99d0-fea1f7541abc';
+    
+    // --- ЭЛЕМЕНТЫ ДЛЯ ОТЛАДКИ ---
+    const debugStatus = document.getElementById('debugStatus');
     
     // --- СОСТОЯНИЕ ПРИЛОЖЕНИЯ ---
-let currentSpread = []; // Здесь будем хранить выпавшие карты
-let isSending = false; // Флаг для предотвращения двойной отправки
+    let currentSpread = [];
+    let isSending = false;
+
+    // --- ФУНКЦИЯ ОБНОВЛЕНИЯ СТАТУСА ---
+    function updateStatus(message, isError = false) {
+      debugStatus.textContent = message;
+      debugStatus.style.color = isError ? '#ff6b6b' : '#a0a0a0';
+      console.log('Статус:', message);
+    }
 
     // --- СОЗДАНИЕ КАРТ ---
     const cardsArea = document.getElementById('cardsArea');
@@ -154,7 +178,7 @@ let isSending = false; // Флаг для предотвращения двой�
       card.className = 'card';
       card.style.backgroundImage = `url('${backCard}')`;
       card.dataset.flipped = 'false';
-      card.dataset.position = i + 1; // Позиция карты (1, 2, 3)
+      card.dataset.position = i + 1;
       cardsArea.appendChild(card);
     }
 
@@ -173,15 +197,17 @@ let isSending = false; // Флаг для предотвращения двой�
 
     // --- ФУНКЦИЯ ОТПРАВКИ В N8N ---
     async function sendToN8N(spread) {
-      if (isSending) return;
+      if (isSending) {
+        updateStatus('⏳ Отправка уже выполняется...');
+        return;
+      }
       
       isSending = true;
       spreadButton.disabled = true;
+      updateStatus('🔄 Отправка данных в n8n...');
       
-      // Получаем данные о пользователе Telegram
       const user = tg.initDataUnsafe?.user || {};
       
-      // Формируем данные для отправки
       const payload = {
         event: 'tarot_spread',
         timestamp: new Date().toISOString(),
@@ -199,84 +225,83 @@ let isSending = false; // Флаг для предотвращения двой�
           cardName: card.name,
           cardNameEn: card.nameEn,
           imageUrl: baseUrl + cardsFolder + card.file
-        })),
-        // Дополнительная информация
-        platform: 'telegram_mini_app',
-        appName: 'tarot_reader'
+        }))
       };
 
       try {
-        console.log('Отправка данных в n8n:', payload);
-        
+        updateStatus('📤 Отправка POST запроса...');
+        console.log('Отправляемые данные:', payload);
+        console.log('URL:', N8N_WEBHOOK_URL);
+
+        // Пробуем разные варианты отправки
         const response = await fetch(N8N_WEBHOOK_URL, {
           method: 'POST',
+          mode: 'cors', // Важно для кросс-доменных запросов
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(payload)
         });
 
+        updateStatus(`📥 Статус ответа: ${response.status}`);
+        console.log('Статус ответа:', response.status);
+        console.log('Заголовки ответа:', [...response.headers.entries()]);
+
+        const responseText = await response.text();
+        console.log('Текст ответа:', responseText);
+
         if (response.ok) {
-          console.log('✅ Данные успешно отправлены в n8n');
+          updateStatus('✅ Успешно отправлено!');
           
-          // Показываем уведомление пользователю (опционально)
-          if (tg.showPopup) {
-            tg.showPopup({
-              title: 'Расклад сохранен',
-              message: 'Ваши карты записаны в историю',
-              buttons: [{ type: 'ok' }]
-            });
+          // Пробуем разобрать JSON если есть
+          try {
+            const responseData = JSON.parse(responseText);
+            console.log('Данные ответа:', responseData);
+          } catch (e) {
+            console.log('Ответ не в JSON формате:', responseText);
           }
         } else {
-          console.error('❌ Ошибка при отправке:', response.status);
+          updateStatus(`❌ Ошибка ${response.status}`, true);
         }
       } catch (error) {
-        console.error('❌ Ошибка сети:', error);
+        updateStatus(`❌ Ошибка: ${error.message}`, true);
+        console.error('Детали ошибки:', error);
       } finally {
         isSending = false;
-        spreadButton.disabled = false;
+        setTimeout(() => {
+          spreadButton.disabled = false;
+          updateStatus('Ожидание...');
+        }, 3000);
       }
     }
 
     // --- ОБРАБОТЧИК КНОПКИ ---
     spreadButton.addEventListener('click', async () => {
-      // Получаем три случайные карты
+      updateStatus('🎴 Выбираем карты...');
+      
       const selectedCards = getRandomUniqueCards(3);
       currentSpread = selectedCards;
       
       const cards = document.querySelectorAll('.card');
       
-      // Переворачиваем карты с анимацией
-      const flipPromises = [];
-      
-      cards.forEach((card, index) => {
+      // Переворачиваем карты
+      for (let index = 0; index < cards.length; index++) {
+        const card = cards[index];
         if (card.dataset.flipped === 'false') {
-          const promise = new Promise((resolve) => {
-            setTimeout(() => {
-              // Показываем карту
-              card.style.backgroundImage = `url('${baseUrl + cardsFolder + selectedCards[index].file}')`;
-              card.dataset.flipped = 'true';
-              
-              // Анимация
-              card.style.transform = 'scale(1.05)';
-              setTimeout(() => {
-                card.style.transform = '';
-              }, 200);
-              
-              resolve();
-            }, index * 200);
-          });
-          flipPromises.push(promise);
+          await new Promise(resolve => setTimeout(resolve, 200));
+          card.style.backgroundImage = `url('${baseUrl + cardsFolder + selectedCards[index].file}')`;
+          card.dataset.flipped = 'true';
+          
+          card.style.transform = 'scale(1.05)';
+          setTimeout(() => {
+            card.style.transform = '';
+          }, 200);
         }
-      });
-
-      // Ждем, пока все карты перевернутся
-      await Promise.all(flipPromises);
+      }
       
-      // Отправляем данные в n8n
+      // Отправляем данные
       await sendToN8N(selectedCards);
 
-      // Haptic feedback
       if (tg.HapticFeedback) {
         tg.HapticFeedback.impactOccurred('medium');
       }
@@ -294,17 +319,8 @@ let isSending = false; // Флаг для предотвращения двой�
           card.style.transform = '';
         }, 100 + index * 100);
       });
+      updateStatus('Готово');
     });
-
-    // --- ФУНКЦИЯ СБРОСА (если нужно) ---
-    window.resetCards = function() {
-      const cards = document.querySelectorAll('.card');
-      cards.forEach(card => {
-        card.style.backgroundImage = `url('${backCard}')`;
-        card.dataset.flipped = 'false';
-      });
-      currentSpread = [];
-    };
   </script>
 </body>
 </html>
