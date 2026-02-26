@@ -1,84 +1,132 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <title>Mini App Таро</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <style>
-    body {
-      margin: 0;
-      overflow: hidden;
-      background: #111;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      color: white;
-      font-family: sans-serif;
-    }
-    .card {
-      position: absolute;
-      width: 100px;
-      height: 160px;
-      background-size: cover;
-      background-position: center;
-      border-radius: 8px;
-      box-shadow: 0 0 15px rgba(255,255,255,0.5);
-      cursor: pointer;
-      transition: transform 0.3s;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>Таро Расклад</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: linear-gradient(135deg, #1b1b1b, #333);
+    font-family: 'Segoe UI', sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    color: #fff;
+    flex-direction: column;
+  }
+
+  .card {
+    position: absolute;
+    width: 100px;
+    height: 160px;
+    background-color: #222;
+    background-size: cover;
+    background-position: center;
+    border-radius: 10px;
+    box-shadow: 0 0 15px rgba(255,255,255,0.3);
+    cursor: pointer;
+    transition: transform 0.6s, background-image 0.6s;
+    transform-style: preserve-3d;
+  }
+
+  .button-container {
+    position: fixed;
+    bottom: 50px;
+    display: flex;
+    justify-content: center;
+    width: 100%;
+  }
+
+  .btn {
+    background: #ff6f61;
+    border: none;
+    padding: 15px 30px;
+    border-radius: 25px;
+    font-size: 18px;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(255,111,97,0.5);
+    transition: transform 0.2s, background 0.2s;
+  }
+
+  .btn:hover {
+    transform: scale(1.05);
+    background: #ff8a75;
+  }
+</style>
 </head>
 <body>
-  <script>
-    const tg = window.Telegram.WebApp;
-    tg.expand();
+<script>
+const tg = window.Telegram.WebApp;
+tg.expand();
 
-    // Картинки Таро (проверенные URL)
-    const cards = [
-      "https://upload.wikimedia.org/wikipedia/commons/5/5a/Rider-Waite_Tarot_00_Fool.jpg",
-      "https://upload.wikimedia.org/wikipedia/commons/d/d4/Rider-Waite_Tarot_01_Magician.jpg",
-      "https://upload.wikimedia.org/wikipedia/commons/2/2e/Rider-Waite_Tarot_02_High_Priestess.jpg"
-    ];
+// Картинки колоды Таро
+const tarotCards = [
+  "https://upload.wikimedia.org/wikipedia/commons/5/5a/Rider-Waite_Tarot_00_Fool.jpg",
+  "https://upload.wikimedia.org/wikipedia/commons/d/d4/Rider-Waite_Tarot_01_Magician.jpg",
+  "https://upload.wikimedia.org/wikipedia/commons/2/2e/Rider-Waite_Tarot_02_High_Priestess.jpg",
+  "https://upload.wikimedia.org/wikipedia/commons/5/55/Rider-Waite_Tarot_03_Empress.jpg",
+  "https://upload.wikimedia.org/wikipedia/commons/0/09/Rider-Waite_Tarot_04_Emperor.jpg"
+  // можно добавить все остальные карты
+];
 
-    const cardElements = [];
-    let centerX = window.innerWidth / 2;
-    let centerY = window.innerHeight / 2;
-    const radius = 150;
+// Картинки рубашки карты
+const backCard = "https://upload.wikimedia.org/wikipedia/commons/0/0b/Rider-Waite_Tarot_back.jpg";
 
-    // Создаем элементы карт
-    cards.forEach((src, i) => {
-      const card = document.createElement("div");
-      card.className = "card";
-      card.style.backgroundImage = `url(${src})`;
-      document.body.appendChild(card);
-      cardElements.push({el: card, angle: (i / cards.length) * 2 * Math.PI});
-    });
+const cardElements = [];
+let centerX = window.innerWidth / 2;
+let centerY = window.innerHeight / 2 - 50; // немного выше центра
+const radius = 120;
 
-    function animate() {
-      cardElements.forEach((c) => {
-        c.angle += 0.01; // скорость вращения
-        const x = centerX + radius * Math.cos(c.angle) - 50; // половина ширины
-        const y = centerY + radius * Math.sin(c.angle) - 80; // половина высоты
-        c.el.style.transform = `translate(${x}px, ${y}px) rotate(${c.angle}rad)`;
-      });
-      requestAnimationFrame(animate);
+// Создаем три карты
+for (let i = 0; i < 3; i++) {
+  const card = document.createElement("div");
+  card.className = "card";
+  card.style.backgroundImage = `url(${backCard})`;
+  document.body.appendChild(card);
+  cardElements.push({el: card, angle: (i / 3) * 2 * Math.PI, flipped: false});
+}
+
+// Анимация полета
+function animate() {
+  cardElements.forEach((c) => {
+    c.angle += 0.01;
+    const x = centerX + radius * Math.cos(c.angle) - 50;
+    const y = centerY + radius * Math.sin(c.angle) - 80;
+    c.el.style.transform = `translate(${x}px, ${y}px) rotateY(${c.flipped ? 180 : 0}deg)`;
+  });
+  requestAnimationFrame(animate);
+}
+
+animate();
+
+// Создаем кнопку "Расклад"
+const buttonContainer = document.createElement("div");
+buttonContainer.className = "button-container";
+const button = document.createElement("button");
+button.className = "btn";
+button.textContent = "Расклад";
+buttonContainer.appendChild(button);
+document.body.appendChild(buttonContainer);
+
+// Клик на кнопку — переворот карт
+button.addEventListener("click", () => {
+  cardElements.forEach((c) => {
+    if (!c.flipped) {
+      const randomIndex = Math.floor(Math.random() * tarotCards.length);
+      c.el.style.backgroundImage = `url(${tarotCards[randomIndex]})`;
+      c.flipped = true;
     }
+  });
+});
 
-    animate();
-
-    // Клик на карту
-    cardElements.forEach((c, i) => {
-      c.el.addEventListener("click", () => {
-        tg.sendData(`Кликнули на карту: ${i}`);
-      });
-    });
-
-    // Обновляем центр при ресайзе
-    window.addEventListener("resize", () => {
-      centerX = window.innerWidth / 2;
-      centerY = window.innerHeight / 2;
-    });
-  </script>
+// Центрируем при ресайзе
+window.addEventListener("resize", () => {
+  centerX = window.innerWidth / 2;
+  centerY = window.innerHeight / 2 - 50;
+});
+</script>
 </body>
 </html>
