@@ -6,6 +6,7 @@
   <title>Таро Расклад</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
+    /* Сброс стилей */
     * {
       margin: 0;
       padding: 0;
@@ -50,14 +51,16 @@
       background-size: cover;
       background-position: center;
       border-radius: 16px;
-      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5), 0 0 0 2px rgba(255, 215, 0, 0.2) inset;
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5),
+                  0 0 0 2px rgba(255, 215, 0, 0.2) inset;
       transition: transform 0.3s ease, box-shadow 0.3s ease;
       flex-shrink: 0;
     }
 
     .card:hover {
       transform: translateY(-8px);
-      box-shadow: 0 18px 25px rgba(0, 0, 0, 0.6), 0 0 0 3px rgba(255, 215, 0, 0.4) inset;
+      box-shadow: 0 18px 25px rgba(0, 0, 0, 0.6),
+                  0 0 0 3px rgba(255, 215, 0, 0.4) inset;
     }
 
     .button-container {
@@ -78,7 +81,8 @@
       font-weight: 600;
       color: #1e1a22;
       cursor: pointer;
-      box-shadow: 0 8px 0 #8b6c3d, 0 10px 20px rgba(0,0,0,0.4);
+      box-shadow: 0 8px 0 #8b6c3d,
+                  0 10px 20px rgba(0, 0, 0, 0.4);
       transition: all 0.1s ease;
       letter-spacing: 1px;
       width: fit-content;
@@ -88,7 +92,8 @@
 
     .btn:active {
       transform: translateY(6px);
-      box-shadow: 0 2px 0 #8b6c3d, 0 5px 12px rgba(0,0,0,0.4);
+      box-shadow: 0 2px 0 #8b6c3d,
+                  0 5px 12px rgba(0, 0, 0, 0.4);
     }
 
     .btn:disabled {
@@ -110,118 +115,194 @@
     }
 
     @media (max-width: 380px) {
-      .cards-area {
-        gap: 8px;
-      }
-      .card {
-        width: 85px;
-        height: 136px;
-      }
+      .cards-area { gap: 8px; }
+      .card { width: 85px; height: 136px; }
     }
   </style>
 </head>
+
 <body>
   <div class="container">
     <div class="cards-area" id="cardsArea">
-      <!-- Карты будут созданы здесь скриптом -->
+      <!-- Карты будут созданы скриптом -->
     </div>
+
     <div class="button-container">
       <button class="btn" id="spreadButton">Расклад</button>
       <div class="debug-status" id="debugStatus">Ожидание...</div>
     </div>
   </div>
 
-<script>
-const tg = window.Telegram.WebApp;
-tg.expand();
-tg.ready();
+  <script>
+    // Инициализация Telegram WebApp
+    const tg = window.Telegram.WebApp;
+    tg.expand();
+    tg.ready();
 
-// --- DEBUG: посмотрим, что реально приходит от Telegram ---
-console.log('initDataUnsafe:', tg.initDataUnsafe);
-console.log('user:', tg.initDataUnsafe?.user);
-console.log('chat:', tg.initDataUnsafe?.chat);
+    // --- НАСТРОЙКА КАРТ ---
+    const baseUrl = 'https://shinobeeee-collab.github.io';
+    const cardsFolder = '/cards/';
+    const backCard = `${baseUrl + cardsFolder}oblojcka.jpg`;
 
-// Базовые настройки
-const baseUrl = 'https://shinobeeee-collab.github.io';
-const cardsFolder = '/cards/';
-const backCard = baseUrl + cardsFolder + 'oblojcka.jpg';
+    const tarotCards = [
+      { file: 'mag.jpg', name: 'Маг', nameEn: 'Magician' },
+      { file: 'shut.jpg', name: 'Шут', nameEn: 'Fool' },
+      { file: 'verhovaya-zhrica.jpg', name: 'Верховная Жрица', nameEn: 'High Priestess' },
+      { file: 'imperatrica.jpg', name: 'Императрица', nameEn: 'Empress' }
+    ];
 
-const tarotCards = [
-  { file: 'mag.jpg', name: 'Маг', nameEn: 'Magician' },
-  { file: 'shut.jpg', name: 'Шут', nameEn: 'Fool' },
-  { file: 'verhovaya-zhrica.jpg', name: 'Верховная Жрица', nameEn: 'High Priestess' },
-  { file: 'imperatrica.jpg', name: 'Императрица', nameEn: 'Empress' }
-];
+    // --- URL N8N ---
+    const N8N_WEBHOOK_URL = 'https://koala22.app.n8n.cloud/webhook-test/fortune';
 
-// Webhook n8n
-const N8N_WEBHOOK_URL = 'https://koala22.app.n8n.cloud/webhook-test/fortune';
+    // --- ЭЛЕМЕНТЫ ДЛЯ ОТЛАДКИ ---
+    const debugStatus = document.getElementById('debugStatus');
 
-// --- Функция для выбора случайных карт ---
-function getRandomUniqueCards(count) {
-  const shuffled = [...tarotCards];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled.slice(0, Math.min(count, shuffled.length));
-}
+    // --- СОСТОЯНИЕ ПРИЛОЖЕНИЯ ---
+    let currentSpread = [];
+    let isSending = false;
 
-// --- Функция отправки JSON в n8n ---
-async function sendToN8N(spread) {
-  // Берем chatId из chat.id, если нет — из user.id
-  const chatId = tg.initDataUnsafe?.chat?.id || tg.initDataUnsafe?.user?.id || null;
+    // --- ФУНКЦИЯ ОБНОВЛЕНИЯ СТАТУСА ---
+    function updateStatus(message, isError = false) {
+      debugStatus.textContent = message;
+      debugStatus.style.color = isError ? '#ff6b6b' : '#a0a0a0';
+      console.log('Статус:', message);
+    }
 
-  const payload = {
-    chatId, // теперь точно будет что-то
-    user: {
-      id: tg.initDataUnsafe?.user?.id || null,
-      firstName: tg.initDataUnsafe?.user?.first_name || '',
-      lastName: tg.initDataUnsafe?.user?.last_name || '',
-      username: tg.initDataUnsafe?.user?.username || '',
-      languageCode: tg.initDataUnsafe?.user?.language_code || ''
-    },
-    spread: spread.map((card, index) => ({
-      position: index + 1,
-      cardFile: card.file,
-      cardName: card.name,
-      cardNameEn: card.nameEn,
-      imageUrl: baseUrl + cardsFolder + card.file
-    })),
-    timestamp: new Date().toISOString()
-  };
+    // --- СОЗДАНИЕ КАРТ ---
+    const cardsArea = document.getElementById('cardsArea');
+    const spreadButton = document.getElementById('spreadButton');
 
-  console.log('Payload для n8n:', payload);
+    for (let i = 0; i < 3; i++) {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.style.backgroundImage = `url('${backCard}')`;
+      card.dataset.flipped = 'false';
+      card.dataset.position = i + 1;
+      cardsArea.appendChild(card);
+    }
 
-  try {
-    const response = await fetch(N8N_WEBHOOK_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+    // --- СЛУЧАЙНЫЙ ВЫБОР КАРТ ---
+    function getRandomUniqueCards(count) {
+      if (tarotCards.length === 0) return [];
+      const shuffled = [...tarotCards];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return shuffled.slice(0, Math.min(count, shuffled.length));
+    }
+
+    // --- ОТПРАВКА В N8N ---
+    async function sendToN8N(spread) {
+      if (isSending) {
+        updateStatus('⏳ Отправка уже выполняется...');
+        return;
+      }
+
+      isSending = true;
+      spreadButton.disabled = true;
+      updateStatus('🔄 Отправка данных в n8n...');
+
+      const user = tg.initDataUnsafe?.user || {};
+      const payload = {
+        event: 'tarot_spread',
+        timestamp: new Date().toISOString(),
+        user: {
+          id: user.id || null,
+          firstName: user.first_name || '',
+          lastName: user.last_name || '',
+          username: user.username || '',
+          languageCode: user.language_code || ''
+        },
+        chat: tg.initDataUnsafe?.chat || {},
+        spread: spread.map((card, index) => ({
+          position: index + 1,
+          cardFile: card.file,
+          cardName: card.name,
+          cardNameEn: card.nameEn,
+          imageUrl: `${baseUrl + cardsFolder + card.file}`
+        }))
+      };
+
+      try {
+        updateStatus('📤 Отправка POST запроса...');
+        console.log('Отправляемые данные:', payload);
+
+        const response = await fetch(N8N_WEBHOOK_URL, {
+          method: 'POST',
+          mode: 'cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        updateStatus(`📥 Статус ответа: ${response.status}`);
+        const responseText = await response.text();
+        console.log('Текст ответа:', responseText);
+
+        if (response.ok) {
+          updateStatus('✅ Успешно отправлено!');
+          try {
+            const responseData = JSON.parse(responseText);
+            console.log('Данные ответа:', responseData);
+          } catch {
+            console.log('Ответ не в JSON формате:', responseText);
+          }
+        } else {
+          updateStatus(`❌ Ошибка ${response.status}`, true);
+        }
+
+      } catch (error) {
+        updateStatus(`❌ Ошибка: ${error.message}`, true);
+        console.error('Детали ошибки:', error);
+      } finally {
+        isSending = false;
+        setTimeout(() => {
+          spreadButton.disabled = false;
+          updateStatus('Ожидание...');
+        }, 3000);
+      }
+    }
+
+    // --- ОБРАБОТЧИК КНОПКИ ---
+    spreadButton.addEventListener('click', async () => {
+      updateStatus('🎴 Выбираем карты...');
+      const selectedCards = getRandomUniqueCards(3);
+      currentSpread = selectedCards;
+
+      const cards = document.querySelectorAll('.card');
+
+      for (let i = 0; i < cards.length; i++) {
+        const card = cards[i];
+        if (card.dataset.flipped === 'false') {
+          await new Promise(resolve => setTimeout(resolve, 200));
+          card.style.backgroundImage = `url('${baseUrl + cardsFolder + selectedCards[i].file}')`;
+          card.dataset.flipped = 'true';
+          card.style.transform = 'scale(1.05)';
+          setTimeout(() => card.style.transform = '', 200);
+        }
+      }
+
+      await sendToN8N(selectedCards);
+
+      if (tg.HapticFeedback) {
+        tg.HapticFeedback.impactOccurred('medium');
+      }
     });
-    console.log('Статус ответа n8n:', response.status);
-  } catch (error) {
-    console.error('Ошибка отправки в n8n:', error);
-  }
-}
 
-// --- Кнопка для расклада ---
-const spreadButton = document.getElementById('spreadButton');
-
-spreadButton.addEventListener('click', async () => {
-  const selectedCards = getRandomUniqueCards(3);
-
-  const cards = document.querySelectorAll('.card');
-  for (let i = 0; i < cards.length; i++) {
-    cards[i].style.backgroundImage = `url('${baseUrl + cardsFolder + selectedCards[i].file}')`;
-    cards[i].dataset.flipped = 'true';
-  }
-
-  await sendToN8N(selectedCards);
-
-  if (tg.HapticFeedback) {
-    tg.HapticFeedback.impactOccurred('medium');
-  }
-});
-</script>
+    // --- АНИМАЦИЯ ПОЯВЛЕНИЯ ---
+    window.addEventListener('load', () => {
+      const cards = document.querySelectorAll('.card');
+      cards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(30px)';
+        setTimeout(() => {
+          card.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+          card.style.opacity = '1';
+          card.style.transform = '';
+        }, 100 + index * 100);
+      });
+      updateStatus('Готово');
+    });
+  </script>
 </body>
 </html>
