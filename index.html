@@ -213,13 +213,13 @@ const payload = {
   event: 'tarot_spread',
   timestamp: new Date().toISOString(),
   user: {
-    id: user.id || null,
-    firstName: user.first_name || '',
-    lastName: user.last_name || '',
-    username: user.username || '',
-    languageCode: user.language_code || ''
+    id: tg.initDataUnsafe?.user?.id || null,
+    firstName: tg.initDataUnsafe?.user?.first_name || '',
+    lastName: tg.initDataUnsafe?.user?.last_name || '',
+    username: tg.initDataUnsafe?.user?.username || '',
+    languageCode: tg.initDataUnsafe?.user?.language_code || ''
   },
-  chatId: tg.initDataUnsafe?.chat?.id || null, // <-- вот тут передаём chatID
+  chatId: tg.initDataUnsafe?.chat?.id || null, // <-- сюда
   spread: spread.map((card, index) => ({
     position: index + 1,
     cardFile: card.file,
