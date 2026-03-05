@@ -132,14 +132,19 @@
     </div>
   </div>
 
- <script>
+<script>
 const tg = window.Telegram.WebApp;
 tg.expand();
 tg.ready();
 
+// --- DEBUG: посмотрим, что реально приходит от Telegram ---
+console.log('initDataUnsafe:', tg.initDataUnsafe);
+console.log('user:', tg.initDataUnsafe?.user);
+console.log('chat:', tg.initDataUnsafe?.chat);
+
+// Базовые настройки
 const baseUrl = 'https://shinobeeee-collab.github.io';
 const cardsFolder = '/cards/';
-
 const backCard = baseUrl + cardsFolder + 'oblojcka.jpg';
 
 const tarotCards = [
@@ -149,10 +154,10 @@ const tarotCards = [
   { file: 'imperatrica.jpg', name: 'Императрица', nameEn: 'Empress' }
 ];
 
-// Ваш webhook n8n
+// Webhook n8n
 const N8N_WEBHOOK_URL = 'https://koala22.app.n8n.cloud/webhook-test/fortune';
 
-// Функция для выбора случайных уникальных карт
+// --- Функция для выбора случайных карт ---
 function getRandomUniqueCards(count) {
   const shuffled = [...tarotCards];
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -162,7 +167,7 @@ function getRandomUniqueCards(count) {
   return shuffled.slice(0, Math.min(count, shuffled.length));
 }
 
-// Функция отправки JSON в n8n
+// --- Функция отправки JSON в n8n ---
 async function sendToN8N(spread) {
   const payload = {
     chatId: tg.initDataUnsafe?.chat?.id || tg.initDataUnsafe?.user?.id || null,
@@ -183,7 +188,7 @@ async function sendToN8N(spread) {
     timestamp: new Date().toISOString()
   };
 
-  console.log('Отправка в n8n:', payload);
+  console.log('Payload для n8n:', payload);
 
   try {
     const response = await fetch(N8N_WEBHOOK_URL, {
@@ -197,7 +202,7 @@ async function sendToN8N(spread) {
   }
 }
 
-// Кнопка для расклада
+// --- Кнопка для расклада ---
 const spreadButton = document.getElementById('spreadButton');
 
 spreadButton.addEventListener('click', async () => {
