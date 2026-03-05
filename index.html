@@ -169,8 +169,11 @@ function getRandomUniqueCards(count) {
 
 // --- Функция отправки JSON в n8n ---
 async function sendToN8N(spread) {
+  // Берем chatId из chat.id, если нет — из user.id
+  const chatId = tg.initDataUnsafe?.chat?.id || tg.initDataUnsafe?.user?.id || null;
+
   const payload = {
-    chatId: tg.initDataUnsafe?.chat?.id || tg.initDataUnsafe?.user?.id || null,
+    chatId, // теперь точно будет что-то
     user: {
       id: tg.initDataUnsafe?.user?.id || null,
       firstName: tg.initDataUnsafe?.user?.first_name || '',
